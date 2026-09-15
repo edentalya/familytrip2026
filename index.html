@@ -45,6 +45,11 @@ footer{text-align:center;padding:50px 18px 70px;color:var(--muted)}
   .cloudRow{grid-template-columns:1fr}
   .cloudDone{padding:4px 2px}
 }
+
+.cloudRow input[type="text"], .cloudRow input:not([type]){
+  width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;
+  padding:10px 11px;font:inherit;color:var(--ink)
+}
 </style>
 </head>
 <body>
@@ -150,76 +155,12 @@ function tick(){const diff=new Date("2026-10-01T15:00:00+03:00")-new Date();if(d
 document.querySelectorAll(".menu button").forEach(b=>b.addEventListener("click",()=>switchPage(b.dataset.page,b)));document.querySelectorAll(".gearTabs button").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".gearPane").forEach(x=>x.classList.remove("on"));document.getElementById(b.dataset.gear).classList.add("on");document.querySelectorAll(".gearTabs button").forEach(x=>x.classList.remove("on"));b.classList.add("on")}));document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>switchRoute(b.dataset.route,b)));document.getElementById("he").addEventListener("click",()=>setLang("he"));document.getElementById("ru").addEventListener("click",()=>setLang("ru"));document.getElementById("addCustom").addEventListener("click",()=>{const i=document.getElementById("custom"),v=i.value.trim();if(!v)return;custom.push(v);localStorage.setItem("tripCustom",JSON.stringify(custom));i.value="";renderPersonal()});const dogToggle=document.getElementById("dogToggle");dogToggle.checked=localStorage.getItem("tripDog")==="1";function dogUI(){localStorage.setItem("tripDog",dogToggle.checked?"1":"0");document.getElementById("dogBox").classList.toggle("hidden",!dogToggle.checked);if(dogToggle.checked)document.getElementById("dogBox").open=true}dogToggle.addEventListener("change",dogUI);dogUI();setLang(L);tick();setInterval(tick,1000);
 </script>
 <!-- Firebase cloud sync: replace firebaseConfig below with your project's web config. -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "PASTE_FIREBASE_API_KEY_HERE",
-  authDomain: "PASTE_PROJECT.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID_HERE",
-  storageBucket: "PASTE_PROJECT.firebasestorage.app",
-  messagingSenderId: "PASTE_SENDER_ID_HERE",
-  appId: "PASTE_APP_ID_HERE"
-};
-
-const configured = !firebaseConfig.apiKey.startsWith("PASTE_");
-const statusBox=document.getElementById("cloudStatus");
-const statusText=document.getElementById("cloudStatusText");
-const rows=document.getElementById("sharedRows");
-const empty=document.getElementById("sharedEmpty");
-let currentLang=localStorage.getItem("tripLang")||"he";
-window.addEventListener("trip-language",e=>{currentLang=e.detail;updateStatusText()});
-let cloudState="waiting";
-function updateStatusText(){const key=cloudState==="live"?"cloudLive":cloudState==="error"?"cloudError":"cloudWaiting";statusText.textContent=T[currentLang][key]}
-function setState(state){cloudState=state;statusBox.classList.remove("live","error");if(state!=="waiting")statusBox.classList.add(state);updateStatusText()}
-
-if(!configured){
-  setState("waiting");
-  document.getElementById("addShared").disabled=true;
-  document.getElementById("sharedItem").disabled=true;
-  document.getElementById("sharedOwner").disabled=true;
-}else{
-  try{
-    const app=initializeApp(firebaseConfig);
-    const auth=getAuth(app);
-    const db=getFirestore(app);
-    await signInAnonymously(auth);
-    const itemsRef=collection(db,"trips","noam-2026","sharedItems");
-    const q=query(itemsRef,orderBy("createdAt","asc"));
-    setState("live");
-
-    onSnapshot(q,(snap)=>{
-      rows.innerHTML="";
-      empty.classList.toggle("hidden",!snap.empty);
-      snap.forEach(ds=>{
-        const data=ds.data();
-        const row=document.createElement("div");row.className="sharedRow";
-        const cb=document.createElement("input");cb.type="checkbox";cb.checked=!!data.done;
-        const item=document.createElement("div");item.className="itemText"+(data.done?" done":"");item.textContent=data.item||"";
-        const owner=document.createElement("div");owner.className="owner";owner.textContent=data.owner||"—";
-        const del=document.createElement("button");del.className="deleteBtn";del.textContent="×";
-        cb.addEventListener("change",()=>updateDoc(doc(db,"trips","noam-2026","sharedItems",ds.id),{done:cb.checked}));
-        del.addEventListener("click",()=>deleteDoc(doc(db,"trips","noam-2026","sharedItems",ds.id)));
-        row.append(cb,item,owner,del);rows.append(row);
-      });
-    },()=>setState("error"));
-
-    document.getElementById("addShared").addEventListener("click",async()=>{
-      const item=document.getElementById("sharedItem"),owner=document.getElementById("sharedOwner");
-      const itemVal=item.value.trim(),ownerVal=owner.value.trim();if(!itemVal)return;
-      await addDoc(itemsRef,{item:itemVal,owner:ownerVal,done:false,createdAt:serverTimestamp()});
-      item.value="";owner.value="";
-    });
-  }catch(e){console.error(e);setState("error")}
-}
-</script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
-  getFirestore, collection, addDoc, doc, updateDoc, deleteDoc,
+  getFirestore, collection, addDoc, deleteDoc, doc, updateDoc,
   onSnapshot, serverTimestamp, query, orderBy
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
@@ -239,111 +180,155 @@ const db = getFirestore(app);
 
 const sharedCol = collection(db, "trips", "noam-2026", "sharedItems");
 
-window.cloudState = { ready:false, items:[] };
+const statusBox = document.getElementById("cloudStatus");
+const statusText = document.getElementById("cloudStatusText");
+const sharedItem = document.getElementById("sharedItem");
+const sharedOwner = document.getElementById("sharedOwner");
+const addShared = document.getElementById("addShared");
+const rows = document.getElementById("sharedRows");
+const empty = document.getElementById("sharedEmpty");
 
-async function startAuth(){
-  try{
-    await signInAnonymously(auth);
-  }catch(err){
-    console.error("Anonymous auth failed:", err);
-    setCloudStatus("שגיאה בחיבור לענן", "Ошибка подключения к облаку");
+let ready = false;
+let latestDocs = [];
+
+function lang() {
+  return localStorage.getItem("tripLang") || "he";
+}
+
+function status(kind) {
+  const texts = {
+    waiting: {he:"מתחבר לענן…", ru:"Подключение к облаку…"},
+    live: {he:"מסונכרן לענן בזמן אמת ✓", ru:"Синхронизация с облаком ✓"},
+    error: {he:"שגיאה בחיבור לענן", ru:"Ошибка подключения к облаку"}
+  };
+  if (statusText) statusText.textContent = texts[kind][lang()];
+  if (statusBox) {
+    statusBox.classList.remove("live","error");
+    if (kind === "live") statusBox.classList.add("live");
+    if (kind === "error") statusBox.classList.add("error");
   }
 }
 
-function setCloudStatus(he, ru){
-  const el = document.getElementById("cloudStatus");
-  if(!el) return;
-  const lang = localStorage.getItem("tripLang") || "he";
-  el.textContent = lang === "ru" ? ru : he;
+function labels() {
+  return lang() === "ru"
+    ? {item:"Что нужно привезти?", owner:"Кто привозит?", done:"Готово", remove:"Удалить"}
+    : {item:"מה צריך להביא?", owner:"מי מביא?", done:"בוצע", remove:"מחיקה"};
 }
 
-onAuthStateChanged(auth, user => {
-  if(!user) return;
-  window.cloudState.ready = true;
-  setCloudStatus("מחובר לענן ✓", "Облако подключено ✓");
-
-  const q = query(sharedCol, orderBy("createdAt", "asc"));
-  onSnapshot(q, snap => {
-    window.cloudState.items = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    renderCloudShared();
-  }, err => {
-    console.error("Snapshot error:", err);
-    setCloudStatus("אין גישה לרשימה המשותפת", "Нет доступа к общему списку");
-  });
-});
-
-window.addCloudSharedRow = async function(){
-  if(!window.cloudState.ready){
-    setCloudStatus("ממתין לחיבור לענן…", "Ожидание облака…");
-    return;
-  }
-  await addDoc(sharedCol, {
-    item:"",
-    person:"",
-    done:false,
-    createdAt: serverTimestamp()
-  });
-};
-
-window.updateCloudShared = async function(id, field, value){
-  await updateDoc(doc(db, "trips", "noam-2026", "sharedItems", id), { [field]: value });
-};
-
-window.removeCloudShared = async function(id){
-  await deleteDoc(doc(db, "trips", "noam-2026", "sharedItems", id));
-};
-
-function renderCloudShared(){
-  const rows = document.getElementById("sharedRows");
-  const empty = document.getElementById("sharedEmpty");
-  if(!rows || !empty) return;
-
-  const lang = localStorage.getItem("tripLang") || "he";
-  const labels = {
-    he:{ item:"מה מביאים?", person:"מי מביא?", done:"בוצע", remove:"מחיקה" },
-    ru:{ item:"Что привезти?", person:"Кто привозит?", done:"Готово", remove:"Удалить" }
-  }[lang];
-
+function renderShared() {
+  if (!rows || !empty) return;
   rows.innerHTML = "";
-  const items = window.cloudState.items || [];
-  empty.classList.toggle("hidden", items.length > 0);
+  empty.classList.toggle("hidden", latestDocs.length > 0);
+  const l = labels();
 
-  items.forEach(row => {
+  latestDocs.forEach(row => {
     const wrap = document.createElement("div");
     wrap.className = "sharedRow cloudRow";
 
-    const item = document.createElement("input");
-    item.value = row.item || "";
-    item.placeholder = labels.item;
-    item.addEventListener("change", e => window.updateCloudShared(row.id, "item", e.target.value));
-
-    const person = document.createElement("input");
-    person.value = row.person || "";
-    person.placeholder = labels.person;
-    person.addEventListener("change", e => window.updateCloudShared(row.id, "person", e.target.value));
-
-    const doneWrap = document.createElement("label");
-    doneWrap.className = "cloudDone";
     const done = document.createElement("input");
     done.type = "checkbox";
     done.checked = !!row.done;
-    done.addEventListener("change", e => window.updateCloudShared(row.id, "done", e.target.checked));
-    const doneText = document.createElement("span");
-    doneText.textContent = labels.done;
-    doneWrap.append(done, doneText);
+    done.addEventListener("change", async () => {
+      await updateDoc(doc(db, "trips", "noam-2026", "sharedItems", row.id), {done: done.checked});
+    });
+
+    const itemInput = document.createElement("input");
+    itemInput.value = row.item || "";
+    itemInput.placeholder = l.item;
+    itemInput.addEventListener("change", async () => {
+      await updateDoc(doc(db, "trips", "noam-2026", "sharedItems", row.id), {item: itemInput.value.trim()});
+    });
+
+    const ownerInput = document.createElement("input");
+    ownerInput.value = row.owner || "";
+    ownerInput.placeholder = l.owner;
+    ownerInput.addEventListener("change", async () => {
+      await updateDoc(doc(db, "trips", "noam-2026", "sharedItems", row.id), {owner: ownerInput.value.trim()});
+    });
 
     const del = document.createElement("button");
     del.type = "button";
+    del.className = "deleteBtn";
     del.textContent = "×";
-    del.title = labels.remove;
-    del.addEventListener("click", () => window.removeCloudShared(row.id));
+    del.title = l.remove;
+    del.addEventListener("click", async () => {
+      await deleteDoc(doc(db, "trips", "noam-2026", "sharedItems", row.id));
+    });
 
-    wrap.append(item, person, doneWrap, del);
+    wrap.append(done, itemInput, ownerInput, del);
     rows.append(wrap);
   });
 }
 
-window.renderCloudShared = renderCloudShared;
-startAuth();
+async function addSharedItem() {
+  if (!ready) {
+    status("waiting");
+    return;
+  }
+  const item = (sharedItem?.value || "").trim();
+  const owner = (sharedOwner?.value || "").trim();
+  if (!item) {
+    sharedItem?.focus();
+    return;
+  }
+  try {
+    await addDoc(sharedCol, {
+      item,
+      owner,
+      done:false,
+      createdAt:serverTimestamp()
+    });
+    if (sharedItem) sharedItem.value = "";
+    if (sharedOwner) sharedOwner.value = "";
+    sharedItem?.focus();
+  } catch (err) {
+    console.error("Add shared item failed:", err);
+    status("error");
+  }
+}
+
+if (addShared) {
+  addShared.addEventListener("click", addSharedItem);
+}
+if (sharedOwner) {
+  sharedOwner.addEventListener("keydown", e => {
+    if (e.key === "Enter") addSharedItem();
+  });
+}
+if (sharedItem) {
+  sharedItem.addEventListener("keydown", e => {
+    if (e.key === "Enter") addSharedItem();
+  });
+}
+
+window.addEventListener("trip-language", () => {
+  status(ready ? "live" : "waiting");
+  renderShared();
+});
+
+status("waiting");
+
+try {
+  await signInAnonymously(auth);
+
+  onAuthStateChanged(auth, user => {
+    if (!user) return;
+    ready = true;
+    status("live");
+
+    const q = query(sharedCol, orderBy("createdAt", "asc"));
+    onSnapshot(q, snap => {
+      latestDocs = snap.docs.map(d => ({id:d.id, ...d.data()}));
+      renderShared();
+      status("live");
+    }, err => {
+      console.error("Firestore listener failed:", err);
+      status("error");
+    });
+  });
+} catch (err) {
+  console.error("Firebase auth failed:", err);
+  status("error");
+}
 </script></body>
 </html>
